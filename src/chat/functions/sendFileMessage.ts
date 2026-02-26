@@ -407,6 +407,14 @@ export async function sendFileMessage(
 
   if (mediaPrep.sendToChat.length === 1) {
     sendMsgResult = mediaPrep.sendToChat({ chat, options: processedOptions });
+  } else if (mediaPrep.sendToChat.length === 0) {
+    // For some versions, the length is 0 (or unknown)
+    // We try to detect by call
+    try {
+      sendMsgResult = mediaPrep.sendToChat({ chat, options: processedOptions });
+    } catch (error) {
+      sendMsgResult = mediaPrep.sendToChat(chat, processedOptions);
+    }
   } else {
     sendMsgResult = mediaPrep.sendToChat(chat, processedOptions);
   }
