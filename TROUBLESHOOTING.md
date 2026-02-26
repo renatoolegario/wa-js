@@ -39,28 +39,47 @@ To diagnose the issue, you can try the following:
 1.  **Enable Debug Logs:**
     Set `localStorage.debug = 'WA-JS:message,WA-JS:whatsapp'` in the browser console to see detailed logs.
 
-2.  **Check `MediaPrep` Availability:**
+2.  **Inspect `MediaPrep` Structure:**
     Run this in the browser console:
     ```javascript
-    WPP.whatsapp.MediaPrep
+    console.log(WPP.whatsapp.MediaPrep);
     ```
-    If it returns `undefined`, the module export is broken.
+    If it returns an object like `{ MediaPrep: class MediaPrep ..., prepRawMedia: ... }`, then the class is nested.
 
-3.  **Trace `sendToChat`:**
-    You can try to monkey-patch `MediaPrep.sendToChat` to see what it receives and returns:
+3.  **Find `sendToChat`:**
+    If `WPP.whatsapp.MediaPrep` is a namespace object, look for the function on `WPP.whatsapp.MediaPrep.MediaPrep.prototype`:
     ```javascript
-    const originalSend = WPP.whatsapp.MediaPrep.prototype.sendToChat;
-    WPP.whatsapp.MediaPrep.prototype.sendToChat = function(...args) {
+    const MediaPrepClass = WPP.whatsapp.MediaPrep.MediaPrep;
+    if (MediaPrepClass && MediaPrepClass.prototype.sendToChat) {
+        console.log('sendToChat found!');
+        console.log(MediaPrepClass.prototype.sendToChat.toString());
+    } else {
+        console.error('sendToChat NOT found!');
+    }
+    ```
+
+4.  **Identify `productMsgOptions` Name:**
+    Check the output of `sendToChat.toString()` from the step above. Look for how the arguments are used. Specifically, look for property access on the second argument (the options object). It might be `productMsgOptions`, `msgOptions`, `message`, etc.
+
+    Example of what to look for in the minified code:
+    `t.productMsgOptions` or `t.msgOptions`
+
+5.  **Trace `sendToChat` Execution:**
+    You can monkey-patch it to see the arguments:
+    ```javascript
+    const MediaPrepClass = WPP.whatsapp.MediaPrep.MediaPrep;
+    const originalSend = MediaPrepClass.prototype.sendToChat;
+    MediaPrepClass.prototype.sendToChat = function(...args) {
         console.log('sendToChat called with:', args);
         return originalSend.apply(this, args);
     };
     ```
 
-4.  **Verify Message ID:**
+6.  **Verify Message ID:**
     If the script hangs, check the network tab or the chat to see if the message *was* sent. If it was, check its ID. If the ID is different from what `wa-js` generated (visible in debug logs), then the ID mismatch hypothesis is correct.
 
 ## Potential Fixes
 
 -   **Update Selectors:** If `MediaPrep` is missing, `src/whatsapp/misc/MediaPrep.ts` needs to be updated with a new search condition.
--   **Update Property Names:** If `productMsgOptions` is ignored, we might need to find the new property name by inspecting the `MediaPrep` code source (via `WPP.webpack.moduleSource`).
+-   **Update Property Names:** If `productMsgOptions` is ignored, update `src/chat/functions/sendFileMessage.ts` to use the new property name found in step 4.
 -   **Fallback to `sendRawMessage`:** If `MediaPrep` is too unstable, we might need to explore constructing the `MediaData` manually and using `WPP.chat.sendRawMessage`, though this is complex.
