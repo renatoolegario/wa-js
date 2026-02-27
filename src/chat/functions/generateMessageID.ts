@@ -31,10 +31,28 @@ export async function generateMessageID(
 
   if (chat instanceof Wid) {
     to = chat;
+  } else if (
+    chat &&
+    typeof chat === 'object' &&
+    'id' in chat &&
+    (chat as any).id instanceof Wid
+  ) {
+    console.log(
+      '[wa-js DEBUG - generateMessageID] Resolvido via duck-typing (chat.id instanceof Wid):',
+      (chat as any).id.toString()
+    );
+    to = (chat as any).id;
   } else if (chat instanceof ChatModel) {
+    console.log(
+      '[wa-js DEBUG - generateMessageID] Resolvido via (chat instanceof ChatModel)'
+    );
     to = chat.id;
   } else {
-    to = assertWid(chat);
+    console.error(
+      '[wa-js DEBUG - generateMessageID] Falha na validação, caindo no fallback assertWid. chat=',
+      chat
+    );
+    to = assertWid(chat as any);
   }
 
   // For group messages, use LID format for both 'from' and 'participant'
